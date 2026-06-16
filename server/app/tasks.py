@@ -38,7 +38,7 @@ async def _execute_cleanup(db: AsyncSession, cutoff: datetime) -> int:
         # Execute deletion
         delete_stmt = delete(User).where(
             User.is_verified == False, User.created_at <= cutoff
-        )
+        ).execution_options(synchronize_session=False)
         await db.execute(delete_stmt)
         await db.commit()
         logger.info(f"Successfully deleted {count} unverified users.")
