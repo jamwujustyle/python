@@ -248,4 +248,7 @@ If preparing for a true large-scale production release, we would build upon the 
 6.  **3-Layer Architecture (Router -> Service -> Repository)**:
     *   *Current*: The codebase uses a 2-layer structure where Routers invoke class-based Service instances (injected via centralized dependency providers), and Services execute SQLAlchemy queries directly.
     *   *Production*: For larger projects, we would add a dedicated Repository layer (Router -> Service -> Repository) to completely abstract the database access layer, simplify unit testing/mocking, and isolate domain business logic from specific persistence frameworks.
+7.  **Authentication Strategy (Headers vs HTTP-Only Cookies)**:
+    *   *Current Choice*: The API uses `Authorization: Bearer <token>` headers. This maximizes flexibility, allowing the API to be consumed by diverse clients including mobile apps (iOS/Android), external backend services, and third-party integrations which don't natively manage cookie jars. It also avoids CORS and CSRF complexities inherent to cookie-based auth.
+    *   *Browser-Strict Alternative*: If this API were built *exclusively* to serve a first-party web browser frontend (like a React/Vue SPA on the same domain), transitioning to `HTTP-Only`, `Secure`, `SameSite=Strict` cookies would be recommended in production. This approach mitigates XSS (Cross-Site Scripting) attacks by preventing malicious JavaScript from reading the tokens, though it introduces the need for robust CSRF protection.
 
