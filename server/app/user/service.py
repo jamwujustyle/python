@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import get_password_hash
-from app.user.models import User
+from app.user.models import User, UserRole
 from app.user.schemas import UserCreate, UserUpdate
 
 
@@ -68,3 +68,19 @@ class UserService:
         await self.db.delete(db_user)
         await self.db.commit()
         return True
+
+    async def promote_user(self, db_user: User) -> User:
+        """Promote a user to Admin role."""
+        db_user.role = UserRole.ADMIN
+        self.db.add(db_user)
+        await self.db.commit()
+        await self.db.refresh(db_user)
+        return db_user
+
+    async def demote_user(self, db_user: User) -> User:
+        """Demote an admin user to standard User role."""
+        db_user.role = UserRole.USER
+        self.db.add(db_user)
+        await self.db.commit()
+        await self.db.refresh(db_user)
+        return db_user

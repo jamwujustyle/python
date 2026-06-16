@@ -103,11 +103,8 @@ if settings.BACKEND_CORS_ORIGINS:
     )
 
 # Register routers:
-# 1. Root-level to support exact specification requirements (e.g. /auth/signup, /me)
+# Root-level to support exact specification requirements (e.g. /auth/signup, /me)
 app.include_router(api_router)
-
-# 2. Versioned-level to align with standard API architecture practices (/api/v1/auth/signup, /api/v1/me)
-app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # 3. Debug routes — only available when DEBUG=True (disabled in production)
 if settings.DEBUG:

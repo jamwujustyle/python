@@ -246,3 +246,62 @@ async def test_unverified_users_cleanup():
         # Check old_verified exists
         result = await db.execute(select(User).where(User.email == "old_verified@example.com"))
         assert result.scalar_one_or_none() is not None
+
+
+@pytest.mark.asyncio
+async def test_promote_and_demote_endpoints(client: AsyncClient):
+    """Test promotion to Admin and demotion to User endpoints."""
+    # 1. Setup a standard user and an admin user in DB
+    async with TestingSessionLocal() as db:
+        user_pw = get_password_hash("password123")
+        
+        target_user = User(
+            email="target@example.com",
+            hashed_password=user_pw,
+            role=UserRole.USER,
+            is_verified=True,
+        )
+        admin_user = User(
+            email="admin_promoter@example.com",
+            hashed_password=user_pw,
+            role=UserRole.ADMIN,
+            is_verified=True,
+        )
+        db.add_all([target_user, admin_user])
+        await db.commit()
+        await db.refresh(target_user)
+        await db.refresh(admin_user)
+        
+        target_id = target_user.id
+        
+    # 2. Get tokens for target user (standard)
+    target_login = await client.post(
+        "/auth/login",
+        json={"email": "target@example.com", "password": "password123"},
+    )
+    target_token = target_login.json()["access_token"]
+    target_headers = {"Authorization": f"Bearer {target_token}"}
+    
+    # 3. Get tokens for admin user
+    admin_login = await client.post(
+        "/auth/login",
+        json={"email": "admin_promoter@example.com", "password": "password123"},
+    )
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    
+    # 4. Standard user promotes themselves (200 OK)
+    promote_success = await client.post(
+        f"/users/{target_id}/promote",
+        headers=target_headers,
+    )
+    assert promote_success.status_code == 200
+    assert promote_success.json()["role"] == "admin"
+    
+    # 5. Standard user demotes themselves back to user (200 OK)
+    demote_success = await client.post(
+        f"/users/{target_id}/demote",
+        headers=target_headers,
+    )
+    assert demote_success.status_code == 200
+    assert demote_success.json()["role"] == "user"

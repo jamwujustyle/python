@@ -32,6 +32,8 @@ class UserRead(UserBase):
     is_verified: bool
     created_at: datetime
     updated_at: datetime
+    # Included in development/testing for UI convenience; set to None once verified
+    verification_code: Optional[str] = None
 
     class Config:
         from_attributes = True

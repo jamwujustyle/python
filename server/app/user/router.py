@@ -89,8 +89,8 @@ async def update_user_profile(
         conflict_user = await service.get_user_by_email(user_in.email)
         if conflict_user:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A user with this email address already exists.",
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot update: this email is already in use by another account.",
             )
 
     return await service.update_user(db_user, user_in)
@@ -114,3 +114,43 @@ async def delete_user_profile(
             detail="User not found.",
         )
     return None
+
+
+@router.post(
+    "/users/{id}/promote",
+    status_code=status.HTTP_200_OK,
+    summary="Promote user to Admin",
+    description="Promotes a user to the Admin role. Open to all users for development and testing purposes.",
+)
+async def promote_user_to_admin(
+    id: uuid.UUID,
+    service: UserService = Depends(get_user_service),
+):
+    db_user = await service.get_user_by_id(id)
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+    await service.promote_user(db_user)
+    return {"id": str(db_user.id), "email": db_user.email, "message": "promoted"}
+
+
+@router.post(
+    "/users/{id}/demote",
+    status_code=status.HTTP_200_OK,
+    summary="Demote Admin to standard User",
+    description="Demotes an admin user to the standard User role. Open to all users for development and testing purposes.",
+)
+async def demote_admin_to_user(
+    id: uuid.UUID,
+    service: UserService = Depends(get_user_service),
+):
+    db_user = await service.get_user_by_id(id)
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+    await service.demote_user(db_user)
+    return {"id": str(db_user.id), "email": db_user.email, "message": "demoted"}
