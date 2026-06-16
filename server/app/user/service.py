@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import get_password_hash
 from app.user.models import User, UserRole
-from app.user.schemas import UserCreate, UserUpdate
+from app.user.schemas import UserUpdate
 
 
 class UserService:
@@ -30,21 +30,6 @@ class UserService:
         """Retrieve a list of users with pagination."""
         result = await self.db.execute(select(User).offset(skip).limit(limit))
         return list(result.scalars().all())
-
-    async def create_user(self, user_in: UserCreate) -> User:
-        """Create a new user with hashed password and unverified status."""
-        hashed_password = get_password_hash(user_in.password)
-        db_user = User(
-            email=user_in.email,
-            hashed_password=hashed_password,
-            first_name=user_in.first_name,
-            last_name=user_in.last_name,
-            is_verified=False,
-        )
-        self.db.add(db_user)
-        await self.db.commit()
-        await self.db.refresh(db_user)
-        return db_user
 
     async def update_user(self, db_user: User, user_in: UserUpdate) -> User:
         """Partially update user details, hashing the password if it is provided."""

@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.core.security import decode_token
 from app.user.models import User, UserRole
 from app.user.service import UserService
+from app.auth.service import AuthService
 
 # Reusable security scheme for extracting JWT token
 security_scheme = HTTPBearer(auto_error=False)
@@ -13,6 +14,11 @@ security_scheme = HTTPBearer(auto_error=False)
 async def get_user_service(db: AsyncSession = Depends(get_db)) -> UserService:
     """Dependency provider to instantiate UserService."""
     return UserService(db)
+
+
+async def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
+    """Dependency provider to instantiate AuthService."""
+    return AuthService(db)
 
 
 async def get_current_user(

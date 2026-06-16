@@ -1,16 +1,10 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.database import get_db
 from app.user.schemas import UserCreate, UserRead
 from app.auth.schemas import LoginRequest, RefreshRequest, Token, VerifyRequest
 from app.auth.service import AuthService
+from app.auth.dependencies import get_auth_service
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
-
-
-async def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
-    """Dependency provider to instantiate AuthService."""
-    return AuthService(db)
 
 
 @router.post(

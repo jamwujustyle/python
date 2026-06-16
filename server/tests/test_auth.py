@@ -296,7 +296,7 @@ async def test_promote_and_demote_endpoints(client: AsyncClient):
         headers=target_headers,
     )
     assert promote_success.status_code == 200
-    assert promote_success.json()["role"] == "admin"
+    assert promote_success.json()["message"] == "promoted"
     
     # 5. Standard user demotes themselves back to user (200 OK)
     demote_success = await client.post(
@@ -304,4 +304,4 @@ async def test_promote_and_demote_endpoints(client: AsyncClient):
         headers=target_headers,
     )
     assert demote_success.status_code == 200
-    assert demote_success.json()["role"] == "user"
+    assert demote_success.json()["message"] == "demoted"

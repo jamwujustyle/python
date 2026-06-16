@@ -52,9 +52,9 @@ graph TD
 ```
 
 ### Module Breakdown
-*   **`core`**: Contains settings management (Pydantic Settings), database session hooks, security configurations (JWT tokens & password hashing), and Celery scheduler parameters.
-*   **`auth`**: Handles authentication workflows: signup validation, user login, token refresh, and account verification checks.
-*   **`user`**: Exposes user-specific operations, pagination list queries, ID lookups, partial data updates, and deletions.
+*   **`core`**: Contains settings management (Pydantic Settings), database session hooks, security configurations (JWT tokens & password hashing), global exception handlers, and Celery scheduler parameters.
+*   **`auth`**: Handles authentication workflows: signup validation, user login, token refresh, account verification checks, and centralized dependency providers (`get_user_service`, `get_auth_service`).
+*   **`user`**: Exposes user-specific operations, pagination list queries, ID lookups, partial data updates, role promotion/demotion, and deletions.
 
 ---
 
@@ -65,6 +65,8 @@ graph TD
 3.  **Verification Flow**: Validates the 6-digit confirmation code. In development, this code is output directly to the container/application stdout logs.
 4.  **Automatic Cleanup**: Active Celery Beat task runs hourly to purge unverified accounts created more than 2 days ago.
 5.  **Role-Based Access Control**: Exposes `User` and `Admin` roles. Restricts admin endpoints (e.g. user listing, specific lookups, and account deletions) to admin users.
+6.  **Role Promotion & Demotion**: Dedicated endpoints to promote a user to Admin or demote them back to User — open for development/testing convenience.
+7.  **Global Exception Handling**: Centralized error handling (`core/exception_handlers.py`) catches database integrity errors, validation errors, and unhandled exceptions, returning consistent JSON error responses.
 
 ---
 
@@ -74,14 +76,20 @@ graph TD
 ├── docker-compose.yml       # Production/development services orchestrator
 ├── justfile                 # Commands shortcut script
 ├── README.md                # Documentation and setup instructions
+├── scripts
+│   └── init_env.sh          # Auto-generates .env with secure JWT_SECRET_KEY
 └── server
     ├── Dockerfile           # Python 3.13 docker image configuration
+    ├── pytest.ini           # Pytest configuration (asyncio mode)
     ├── requirements.txt     # Python packages and version requirements
     ├── app
     │   ├── api              # Global API Routing structure
-    │   │   ├── v1
+    │   │   ├── debug        # Debug-only routes (enabled when DEBUG=true)
     │   │   │   ├── __init__.py
     │   │   │   └── router.py
+    │   │   └── v1
+    │   │       ├── __init__.py
+    │   │       └── router.py
     │   ├── auth             # Auth domain logic
     │   │   ├── __init__.py
     │   │   ├── dependencies.py
@@ -91,6 +99,7 @@ graph TD
     │   ├── core             # Global shared configuration & settings
     │   │   ├── config.py
     │   │   ├── database.py
+    │   │   ├── exception_handlers.py
     │   │   └── security.py
     │   ├── user             # User domain logic
     │   │   ├── __init__.py
@@ -98,7 +107,8 @@ graph TD
     │   │   ├── router.py
     │   │   ├── schemas.py
     │   │   └── service.py
-    │   ├── main.py          # FastAPI application initialization & DB migrations seeding
+    │   ├── logging_config.py # Unified color-coded logging utility
+    │   ├── main.py          # FastAPI application initialization & DB seeding
     │   ├── tasks.py         # Celery background tasks
     │   └── worker.py        # Celery application configuration & scheduling
     └── tests                # Pytest integration/unit test suite
@@ -116,12 +126,13 @@ graph TD
 > This application is designed to run **exclusively** inside the Docker Compose environment. Running the application directly on the host machine (locally) is **not supported** to avoid platform-specific dependency collisions (such as Python 3.13 differences, Postgres compiler adapter issues, and local Redis/Celery queue mismatches). All development, runs, and testing are orchestrated via Docker.
 
 ### Requirements
-Ensure you have **Docker** and **just** installed.
+* **Docker** (required)
+* **just** (optional — a command runner for convenience shortcuts. If not installed, use the equivalent Docker commands shown below)
 
 ### Environment Configuration
 The project isolates configuration from runtime environments using a `.env` file (which is added to `.gitignore` to prevent secret leakage):
 
-1. **Setup & Initialization**: Run `just start`. The build recipe will automatically detect if a `.env` file is missing, copy the template `.env.example`, and generate a cryptographically secure 256-bit `JWT_SECRET_KEY` using `openssl`.
+1. **Setup & Initialization**: Run `just setup` (or manually run `./scripts/init_env.sh`). The script will detect if a `.env` file is missing, copy the template `.env.example`, and generate a cryptographically secure 256-bit `JWT_SECRET_KEY` using `openssl`.
 2. **Production Environments**: In production, do not deploy the `.env` file. Environment variables should be injected directly into the execution space (e.g., via GitHub Actions Secrets, AWS Secrets Manager, or HashiCorp Vault).
 
 ### Start the Application
@@ -129,6 +140,9 @@ Build and launch all containers (FastAPI, PostgreSQL, Redis, Celery Worker, and 
 
 ```bash
 just start
+# or manually:
+# ./scripts/init_env.sh   (if .env doesn't exist yet)
+# docker compose up --build
 ```
 
 *   **FastAPI Application**: Accessible at [http://localhost:8000](http://localhost:8000)
@@ -140,11 +154,21 @@ For convenience during development and API review, an Admin user is automaticall
 *   **Email**: `admin@example.com`
 *   **Password**: `adminpassword`
 
+### Running Tests
+
+```bash
+just test
+# or manually:
+# docker compose run --rm -v ./server/tests:/app/tests app pytest -o asyncio_mode=auto -o asyncio_default_fixture_loop_scope=function /app/tests
+```
+
 ### Stopping the Services
 To stop and clean container volumes, run:
 
 ```bash
 just stop
+# or manually:
+# docker compose down -v
 ```
 
 ---
@@ -190,6 +214,8 @@ The application uses a unified, custom color-coded logging utility (`app/logging
 | **GET** | `/users/{id}` | Admin Only | Retrieve a user profile by their UUID. |
 | **PATCH** | `/users/{id}` | Owner / Admin | Partially update user profile data (email, name, password). |
 | **DELETE** | `/users/{id}` | Admin Only | Delete user profile from the database. |
+| **POST** | `/users/{id}/promote` | Public (Dev) | Promote a user to Admin role. |
+| **POST** | `/users/{id}/demote` | Public (Dev) | Demote an admin to standard User role. |
 
 ### Development & Debug Routes (Only available when `DEBUG=true`)
 | Method | Endpoint | Access Level | Description |
@@ -220,6 +246,6 @@ If preparing for a true large-scale production release, we would build upon the 
     *   *Current*: Celery worker runs with a simple thread-safe wrapper loop calling async code.
     *   *Production*: Run task scheduler events to trigger dedicated API actions via HTTP webhooks, or configure tortoise-orm/beanie/SQLAlchemy with dedicated connection pools for background processes to prevent session overlap errors under heavy workloads.
 6.  **3-Layer Architecture (Router -> Service -> Repository)**:
-    *   *Current*: The codebase uses a 2-layer structure where Routers invoke Service functions, and Service functions execute SQLAlchemy queries directly.
-    *   *Production*: For larger projects, we would transition to a 3-layer architecture (Router -> Service -> Repository) to completely abstract the database access layer, simplify unit testing/mocking, and isolate domain business logic from specific persistence frameworks.
+    *   *Current*: The codebase uses a 2-layer structure where Routers invoke class-based Service instances (injected via centralized dependency providers), and Services execute SQLAlchemy queries directly.
+    *   *Production*: For larger projects, we would add a dedicated Repository layer (Router -> Service -> Repository) to completely abstract the database access layer, simplify unit testing/mocking, and isolate domain business logic from specific persistence frameworks.
 

@@ -54,19 +54,8 @@ def cleanup_unverified_users() -> int:
     Celery task that acts as a wrapper around the async database cleanup logic.
     """
     logger.info("Starting cleanup of unverified users...")
+    loop = asyncio.new_event_loop()
     try:
-        # Standard Celery worker execution (synchronous)
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    if loop.is_running():
-        # If event loop is already running, schedule the task inside it
-        future = asyncio.run_coroutine_threadsafe(
-            async_cleanup_unverified_users(), loop
-        )
-        return future.result()
-    else:
-        # Run in a clean isolated event loop
         return loop.run_until_complete(async_cleanup_unverified_users())
+    finally:
+        loop.close()
