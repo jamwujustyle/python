@@ -1,0 +1,21 @@
+# main
+fastapi
+uvicorn[standard]
+pydantic[email]
+pydantic-settings
+sqlalchemy[asyncio]
+aiosqlite
+asyncpg
+
+# background processing
+celery
+redis
+
+pyjwt
+bcrypt
+python-multipart
+
+# Testing
+pytest
+pytest-asyncio
+httpx
