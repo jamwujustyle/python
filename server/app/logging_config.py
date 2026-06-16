@@ -1,7 +1,6 @@
 import logging
 import sys
 import os
-from app.core.config import get_settings
 
 
 class CustomFormatter(logging.Formatter):
